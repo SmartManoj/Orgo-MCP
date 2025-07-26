@@ -70,30 +70,17 @@ async def initialize_computer(
         await ctx.info(f"Initializing computer for session: {session_id or 'default'}")
     
     try:
-        from orgo import Computer
-    except ImportError:
-        if ctx:
-            await ctx.error("Orgo SDK not installed. Run: pip install orgo")
-        raise ValueError("Orgo SDK not installed")
-    
-    try:
-        computer = Computer(
+        result = await _initialize_computer_internal(
             project_id=project_id,
+            session_id=session_id,
             base_api_url=base_api_url,
             config=config
         )
         
-        session_id = registry.add(computer, session_id)
-        status = computer.status()
-        
         if ctx:
-            await ctx.info(f"Computer initialized with project ID: {computer.project_id}")
+            await ctx.info(f"Computer initialized with project ID: {result['project_id']}")
         
-        return {
-            "session_id": session_id,
-            "project_id": computer.project_id,
-            "status": status
-        }
+        return result
     except Exception as e:
         if ctx:
             await ctx.error(f"Failed to initialize computer: {str(e)}")
@@ -379,6 +366,59 @@ def desktop_guidelines() -> str:
 * For long operations, consider the wait function
 """
 
+async def _initialize_computer_internal(
+    project_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    base_api_url: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Internal function to initialize a computer (separate from MCP tool)."""
+    try:
+        from orgo import Computer
+    except ImportError:
+        raise ValueError("Orgo SDK not installed")
+    
+    computer = Computer(
+        project_id=project_id,
+        base_api_url=base_api_url,
+        config=config
+    )
+    
+    session_id = registry.add(computer, session_id)
+    status = computer.status()
+    
+    return {
+        "session_id": session_id,
+        "project_id": computer.project_id,
+        "status": status
+    }
+
+async def auto_initialize_computer():
+    """Automatically initialize a default computer session at startup."""
+    try:
+        logger.info("Auto-initializing default computer session...")
+        
+        # Get project ID from environment variable
+        project_id = os.environ.get("ORGO_PROJECT_ID")
+        if project_id:
+            logger.info(f"Using project ID from environment: {project_id}")
+        else:
+            logger.warning("No ORGO_PROJECT_ID found in environment variables")
+        
+        result = await _initialize_computer_internal(project_id=project_id)
+        logger.info(f"Auto-initialization successful: {result}")
+        return result
+    except Exception as e:
+        logger.warning(f"Auto-initialization failed: {e}")
+        return None
+
 if __name__ == "__main__":
+    # Auto-initialize computer before starting the server
+    import asyncio
+    try:
+        asyncio.run(auto_initialize_computer())
+    except Exception as e:
+        logger.warning(f"Failed to auto-initialize computer: {e}")
+    
     mcp.run()
     # mcp.run(transport="streamable-http", host="127.0.0.1", port=8000)
