@@ -27,7 +27,7 @@ export ORGO_API_KEY="your_orgo_key"
 export ANTHROPIC_API_KEY="your_anthropic_key"
 
 # Start server
-python computer_mcp_server.py
+python server.py
 ```
 
 Server runs on `http://127.0.0.1:9000`
